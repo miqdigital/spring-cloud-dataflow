@@ -428,15 +428,16 @@ public class AppRegistryController {
 	 * {@link org.springframework.cloud.deployer.resource.support.DelegatingResourceLoader}.
 	 */
 	private void prefetchMetadata(List<AppRegistration> appRegistrations) {
-		forkJoinPool.execute(() -> appRegistrations.stream().filter(r -> r.getMetadataUri() != null).parallel().forEach(r -> {
-			logger.info("Eagerly fetching {}", r.getMetadataUri());
-			try {
-				this.appRegistryService.getAppMetadataResource(r);
-			}
-			catch (Exception e) {
-				logger.warn("Could not fetch {}", r.getMetadataUri(), e);
-			}
-		}));
+		forkJoinPool.execute(
+				() -> appRegistrations.stream().filter(r -> r.getMetadataUri() != null).parallel().forEach(r -> {
+					logger.info("Eagerly fetching {}", r.getMetadataUri());
+					try {
+						this.appRegistryService.getAppMetadataResource(r);
+					}
+					catch (Exception e) {
+						logger.warn("Could not fetch {}", r.getMetadataUri(), e);
+					}
+				}));
 	}
 
 	private void validateApplicationName(String name) {
