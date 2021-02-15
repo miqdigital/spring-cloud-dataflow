@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 the original author or authors.
+ * Copyright 2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,40 +28,34 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.batch.core.step.tasklet.TaskletStep;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.EmbeddedDataSourceConfiguration;
 import org.springframework.cloud.common.security.CommonSecurityAutoConfiguration;
 import org.springframework.cloud.dataflow.composedtaskrunner.configuration.DataFlowTestConfiguration;
 import org.springframework.cloud.dataflow.composedtaskrunner.properties.ComposedTaskProperties;
-import org.springframework.cloud.dataflow.rest.client.TaskOperations;
+import org.springframework.cloud.dataflow.composedtaskrunner.support.ComposedTaskRunnerTaskletTestUtils;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.util.Assert;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author Glenn Renfro
+ * @author Janne Valkealahti
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes={EmbeddedDataSourceConfiguration.class,
 		DataFlowTestConfiguration.class,StepBeanDefinitionRegistrar.class,
-		ComposedTaskRunnerConfiguration.class,
-		StepBeanDefinitionRegistrar.class})
+		ComposedTaskRunnerConfiguration.class})
 @TestPropertySource(properties = {"graph=ComposedTest-AAA && ComposedTest-BBB && ComposedTest-CCC","max-wait-time=1010",
-		"composed-task-properties=" + ComposedTaskRunnerConfigurationWithPropertiesTests.COMPOSED_TASK_PROPS ,
+"composed-task-properties=" + ComposedTaskRunnerConfigurationWithVersionPropertiesTests.COMPOSED_TASK_PROPS ,
 		"interval-time-between-checks=1100", "composed-task-arguments=--baz=boo --AAA.foo=bar BBB.que=qui",
 		"dataflow-server-uri=https://bar", "spring.cloud.task.name=ComposedTest"})
 @EnableAutoConfiguration(exclude = { CommonSecurityAutoConfiguration.class})
-public class ComposedTaskRunnerConfigurationWithPropertiesTests {
+public class ComposedTaskRunnerConfigurationWithVersionPropertiesTests {
 
 	@Autowired
 	private JobRepository jobRepository;
@@ -70,36 +64,36 @@ public class ComposedTaskRunnerConfigurationWithPropertiesTests {
 	private Job job;
 
 	@Autowired
-	private ComposedTaskProperties composedTaskProperties;
-
-	@Autowired
 	ApplicationContext context;
 
-	protected static final String COMPOSED_TASK_PROPS = "app.ComposedTest-AAA.format=yyyy, "
-			+ "app.ComposedTest-BBB.format=mm, "
-			+ "deployer.ComposedTest-AAA.memory=2048m";
+	@Autowired
+	private ComposedTaskProperties composedTaskProperties;
+
+	protected static final String COMPOSED_TASK_PROPS = "version.ComposedTest-AAA.AAA=1.0.0";
 
 	@Test
 	@DirtiesContext
 	public void testComposedConfiguration() throws Exception {
 		JobExecution jobExecution = this.jobRepository.createJobExecution(
 				"ComposedTest", new JobParameters());
-		TaskletStep ctrStep = context.getBean("ComposedTest-AAA_0", TaskletStep.class);
-		TaskOperations taskOperations = mock(TaskOperations.class);
-		ReflectionTestUtils.setField(ctrStep.getTasklet(), "taskOperations", taskOperations);
-
 		job.execute(jobExecution);
 
 		Map<String, String> props = new HashMap<>(1);
-		props.put("format", "yyyy");
-		props.put("memory", "2048m");
-		assertEquals(COMPOSED_TASK_PROPS, composedTaskProperties.getComposedTaskProperties());
-		assertEquals(1010, composedTaskProperties.getMaxWaitTime());
-		assertEquals(1100, composedTaskProperties.getIntervalTimeBetweenChecks());
-		assertEquals("https://bar", composedTaskProperties.getDataflowServerUri().toASCIIString());
+		props.put("version.AAA", "1.0.0");
+		assertThat(composedTaskProperties.getComposedTaskProperties()).isEqualTo(COMPOSED_TASK_PROPS);
+		assertThat(composedTaskProperties.getMaxWaitTime()).isEqualTo(1010);
+		assertThat(composedTaskProperties.getIntervalTimeBetweenChecks()).isEqualTo(1100);
+		assertThat(composedTaskProperties.getDataflowServerUri().toASCIIString()).isEqualTo("https://bar");
 		List<String> args = new ArrayList<>(1);
 		args.add("--baz=boo --foo=bar");
-		Assert.notNull(job.getJobParametersIncrementer(), "JobParametersIncrementer must not be null.");
-		verify(taskOperations).launch("ComposedTest-AAA", props, args);
+		assertThat(job.getJobParametersIncrementer()).withFailMessage("JobParametersIncrementer must not be null.").isNotNull();
+
+		TaskLauncherTasklet tasklet = ComposedTaskRunnerTaskletTestUtils.getTaskletLauncherTasklet(context, "ComposedTest-AAA_0");
+		List<String> result = ComposedTaskRunnerTaskletTestUtils.getTaskletArgumentsViaReflection(tasklet);
+		assertThat(result).contains("--baz=boo --foo=bar");
+		assertThat(result.size()).isEqualTo(1);
+		Map<String, String> taskletProperties = ComposedTaskRunnerTaskletTestUtils.getTaskletPropertiesViaReflection(tasklet);
+		assertThat(taskletProperties.size()).isEqualTo(1);
+		assertThat(taskletProperties.get("version.AAA")).isEqualTo("1.0.0");
 	}
 }

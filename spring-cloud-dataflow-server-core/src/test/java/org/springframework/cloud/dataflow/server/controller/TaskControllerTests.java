@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -306,13 +306,13 @@ public class TaskControllerTests {
 
 		TaskDefinition myTask1 = repository.findById("myTask-t1").get();
 		assertThat(myTask1.getProperties().get("foo")).isEqualTo("bar rab");
-		assertThat(myTask1.getDslText()).isEqualTo("task --foo='bar rab'");
+		assertThat(myTask1.getDslText()).isEqualTo("t1:task --foo='bar rab'");
 		assertThat(myTask1.getRegisteredAppName()).isEqualTo("task");
 		assertThat(myTask1.getName()).isEqualTo("myTask-t1");
 
 		TaskDefinition myTask2 = repository.findById("myTask-t2").get();
 		assertThat(myTask2.getProperties().get("foo")).isEqualTo("one two");
-		assertThat(myTask2.getDslText()).isEqualTo("task --foo='one two'");
+		assertThat(myTask2.getDslText()).isEqualTo("t2:task --foo='one two'");
 		assertThat(myTask2.getRegisteredAppName()).isEqualTo("task");
 		assertThat(myTask2.getName()).isEqualTo("myTask-t2");
 	}
@@ -455,6 +455,28 @@ public class TaskControllerTests {
 				.andExpect(jsonPath("$.name", is("a1-t2")))
 				.andExpect(jsonPath("$.composedTaskElement", is(true)));
 	}
+	@Test
+	public void testCTRElementUpdateValidate() throws Exception {
+		repository.save(new TaskDefinition("a1", "t1: task --foo='a|b' && t2: task2"));
+		repository.save(new TaskDefinition("a2", "task"));
+		repository.save(new TaskDefinition("a1-t1", "task"));
+		repository.save(new TaskDefinition("a1-t2", "task"));
+
+		mockMvc.perform(get("/tasks/definitions/").accept(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.content", hasSize(4)))
+				.andExpect(jsonPath("$.content[0].name", is("a1")))
+				.andExpect(jsonPath("$.content[0].composedTaskElement", is(false)))
+				.andExpect(jsonPath("$.content[1].name", is("a2")))
+				.andExpect(jsonPath("$.content[1].composedTaskElement", is(false)))
+				.andExpect(jsonPath("$.content[2].name", is("a1-t1")))
+				.andExpect(jsonPath("$.content[2].composedTaskElement", is(true)))
+				.andExpect(jsonPath("$.content[3].name", is("a1-t2")))
+				.andExpect(jsonPath("$.content[3].composedTaskElement", is(true)));
+
+		mockMvc.perform(get("/tasks/definitions/a1-t2").accept(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.name", is("a1-t2")))
+				.andExpect(jsonPath("$.composedTaskElement", is(true)));
+	}
 
 
 	@Test
@@ -567,7 +589,6 @@ public class TaskControllerTests {
 				"1.0.0", new URI("file:src/test/resources/apps/foo-task"), null);
 
 		mockMvc.perform(post("/tasks/executions")
-				// .param("name", "myTask3")
 				.contentType(MediaType.APPLICATION_FORM_URLENCODED)
 				.content(EntityUtils.toString(new UrlEncodedFormEntity(Arrays.asList(
 						new BasicNameValuePair("name", "myTask3"),

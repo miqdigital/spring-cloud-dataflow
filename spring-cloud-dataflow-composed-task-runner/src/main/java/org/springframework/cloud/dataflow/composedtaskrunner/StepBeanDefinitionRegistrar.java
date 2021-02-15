@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2020 the original author or authors.
+ * Copyright 2017-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import org.codehaus.plexus.util.cli.CommandLineUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
@@ -49,6 +52,8 @@ import org.springframework.util.StringUtils;
 public class StepBeanDefinitionRegistrar implements ImportBeanDefinitionRegistrar,
 		EnvironmentAware {
 
+	private final static Logger log = LoggerFactory.getLogger(StepBeanDefinitionRegistrar.class);
+
 	private Environment env;
 
 	private boolean firstAdd;
@@ -63,18 +68,19 @@ public class StepBeanDefinitionRegistrar implements ImportBeanDefinitionRegistra
 		}
 		TaskParser taskParser = new TaskParser("bean-registration",
 				properties.getGraph(), false, true);
-		Map<String, Integer> taskSuffixMap = getTaskApps(taskParser);
+		Map<String, TaskAppNodeHolder> taskSuffixMap = getTaskApps(taskParser);
 		for (String taskName : taskSuffixMap.keySet()) {
-			//handles the possibility that multiple instances of
+			// handles the possibility that multiple instances of
 			// task definition exist in a composed task
-			for (int taskSuffix = 0; taskSuffixMap.get(taskName) >= taskSuffix; taskSuffix++) {
+			for (int taskSuffix = 0; taskSuffixMap.get(taskName).count >= taskSuffix; taskSuffix++) {
 				BeanDefinitionBuilder builder = BeanDefinitionBuilder
 						.rootBeanDefinition(ComposedTaskRunnerStepFactory.class);
 				builder.addConstructorArgValue(properties);
 				builder.addConstructorArgValue(String.format("%s_%s",
 						taskName, taskSuffix));
+				builder.addConstructorArgValue(taskName.replaceFirst(ctrName + "-", ""));
 				builder.addPropertyValue("taskSpecificProps",
-						getPropertiesForTask(taskName, properties));
+						getPropertiesForTask(taskName, properties, taskSuffixMap.get(taskName)));
 				String args = getCommandLineArgsForTask(properties.getComposedTaskArguments(), taskName, taskSuffixMap, ctrName);
 				builder.addPropertyValue("arguments", args);
 				registry.registerBeanDefinition(String.format("%s_%s",
@@ -82,7 +88,9 @@ public class StepBeanDefinitionRegistrar implements ImportBeanDefinitionRegistra
 			}
 		}
 	}
-	private String getCommandLineArgsForTask(String arguments, String taskName, Map<String, Integer> taskSuffixMap, String ctrName ) {
+
+
+	private String getCommandLineArgsForTask(String arguments, String taskName, Map<String, TaskAppNodeHolder> taskSuffixMap, String ctrName ) {
 		String result = "";
 		if(!StringUtils.hasText(arguments)) {
 			return arguments;
@@ -150,12 +158,14 @@ public class StepBeanDefinitionRegistrar implements ImportBeanDefinitionRegistra
 		return commandLineArgPrefix;
 	}
 
-	private Map<String, String> getPropertiesForTask(String taskName, ComposedTaskProperties properties) {
+	private Map<String, String> getPropertiesForTask(String taskName, ComposedTaskProperties properties, TaskAppNodeHolder holder) {
 		Map<String, String> taskDeploymentProperties =
 				DeploymentPropertiesUtils.parse(properties.getComposedTaskProperties());
 		Map<String, String> deploymentProperties = new HashMap<>();
 		updateDeploymentProperties(String.format("app.%s.", taskName), taskDeploymentProperties, deploymentProperties);
 		updateDeploymentProperties(String.format("deployer.%s.", taskName), taskDeploymentProperties, deploymentProperties);
+		String subTaskName = taskName.substring(taskName.indexOf('-') + 1);
+		updateVersionDeploymentProperties(taskName, subTaskName, taskDeploymentProperties, deploymentProperties);
 		return deploymentProperties;
 	}
 
@@ -169,6 +179,19 @@ public class StepBeanDefinitionRegistrar implements ImportBeanDefinitionRegistra
 		}
 	}
 
+	private void updateVersionDeploymentProperties(String taskName,String subTaskName, Map<String, String> taskDeploymentProperties,
+			Map<String, String> deploymentProperties) {
+		String prefix = String.format("version.%s", taskName);
+		String key = String.format("version.%s", subTaskName);
+		for (Map.Entry<String, String> entry : taskDeploymentProperties.entrySet()) {
+			if (entry.getKey().startsWith(prefix)) {
+				String realkey = String.format("version%s", entry.getKey().replaceFirst("^" + prefix, ""));
+				log.debug("updateVersionDeploymentProperties {} {} {}", key, entry.getValue(), realkey);
+				deploymentProperties.put(realkey, entry.getValue());
+			}
+		}
+	}
+
 	@Override
 	public void setEnvironment(Environment environment) {
 		this.env = environment;
@@ -176,16 +199,21 @@ public class StepBeanDefinitionRegistrar implements ImportBeanDefinitionRegistra
 
 	private ComposedTaskProperties composedTaskProperties() {
 		ComposedTaskProperties properties = new ComposedTaskProperties();
-		String dataFlowUriString = this.env.getProperty("dataflow-server-uri");
-		String maxWaitTime = this.env.getProperty("max-wait-time");
+		String dataFlowUriString = getPropertyValue("dataflow-server-uri");
+		String maxWaitTime = getPropertyValue("max-wait-time");
 		String intervalTimeBetweenChecks =
-				this.env.getProperty("interval-time-between-checks");
-		properties.setGraph(this.env.getProperty("graph"));
+				getPropertyValue("interval-time-between-checks");
+		properties.setGraph(getPropertyValue("graph"));
 		properties.setComposedTaskArguments(
-				this.env.getProperty("composed-task-arguments"));
-		properties.setPlatformName(this.env.getProperty("platform-name"));
-		properties.setComposedTaskProperties(this.env.getProperty("composed-task-properties"));
-
+				getPropertyValue("composed-task-arguments"));
+		properties.setPlatformName(getPropertyValue("platform-name"));
+		properties.setComposedTaskProperties(getPropertyValue("composed-task-properties"));
+		properties.setDataflowServerAccessToken(getPropertyValue("dataflow-server-access-token"));
+		properties.setDataflowServerPassword(getPropertyValue("dataflow-server-password"));
+		properties.setDataflowServerUsername(getPropertyValue("dataflow-server-username"));
+		properties.setOauth2ClientCredentialsClientId(getPropertyValue("oauth2-client-credentials-client-id"));
+		properties.setOauth2ClientCredentialsClientSecret(getPropertyValue("oauth2-client-credential-client-secret"));
+		properties.setOauth2ClientCredentialsScopes(StringUtils.commaDelimitedListToSet(getPropertyValue("oauth2-client-credentials-scopes")));
 		if (maxWaitTime != null) {
 			properties.setMaxWaitTime(Integer.valueOf(maxWaitTime));
 		}
@@ -208,48 +236,70 @@ public class StepBeanDefinitionRegistrar implements ImportBeanDefinitionRegistra
 	 * @return a {@link Map} of task app name as the key and the number of times it occurs
 	 * as the value.
 	 */
-	private Map<String, Integer> getTaskApps(TaskParser taskParser) {
+	private Map<String, TaskAppNodeHolder> getTaskApps(TaskParser taskParser) {
 		TaskAppsMapCollector collector = new TaskAppsMapCollector();
 		taskParser.parse().accept(collector);
 		return collector.getTaskApps();
 	}
 
+	private String getPropertyValue(String key) {
+		RelaxedNames relaxedNames = new RelaxedNames(key);
+		String result = null;
+		Iterator<String> iter = relaxedNames.iterator();
+		while(iter.hasNext()) {
+			String relaxedName = iter.next();
+			if (this.env.containsProperty(relaxedName)) {
+				result = this.env.getProperty(relaxedName);
+				break;
+			}
+		}
+
+		return result;
+	}
 	/**
 	 * Simple visitor that discovers all the tasks in use in the composed
 	 * task definition.
 	 */
 	static class TaskAppsMapCollector extends TaskVisitor {
 
-		Map<String, Integer> taskApps = new HashMap<>();
+		Map<String, TaskAppNodeHolder> taskApps = new HashMap<>();
 
 		@Override
 		public void visit(TaskAppNode taskApp) {
 			if (taskApps.containsKey(taskApp.getName())) {
-				Integer updatedCount = taskApps.get(taskApp.getName()) + 1;
-				taskApps.put(taskApp.getName(), updatedCount);
+				int updatedCount = taskApps.get(taskApp.getName()).count + 1;
+				taskApps.put(taskApp.getName(), new TaskAppNodeHolder(taskApp, updatedCount));
 			}
 			else {
-				taskApps.put(taskApp.getName(), 0);
+				taskApps.put(taskApp.getName(), new TaskAppNodeHolder(taskApp, 0));
 			}
 		}
 
 		@Override
 		public void visit(TransitionNode transition) {
 			if (transition.isTargetApp()) {
-				if (taskApps.containsKey(transition.getTargetApp())) {
-					Integer updatedCount = taskApps.get(transition.getTargetApp()) + 1;
-					taskApps.put(transition.getTargetApp().getName(), updatedCount);
+				if (taskApps.containsKey(transition.getTargetApp().getName())) {
+					int updatedCount = taskApps.get(transition.getTargetApp().getName()).count + 1;
+					taskApps.put(transition.getTargetApp().getName(), new TaskAppNodeHolder(transition.getTargetApp(), updatedCount));
 				}
 				else {
-					taskApps.put(transition.getTargetApp().getName(), 0);
+					taskApps.put(transition.getTargetApp().getName(), new TaskAppNodeHolder(transition.getTargetApp(), 0));
 				}
 			}
 		}
 
-		public Map<String, Integer> getTaskApps() {
+		public Map<String, TaskAppNodeHolder> getTaskApps() {
 			return taskApps;
 		}
 
 	}
 
+	static class TaskAppNodeHolder {
+		TaskAppNode taskAppNode;
+		int count;
+		TaskAppNodeHolder(TaskAppNode taskAppNode, int count) {
+			this.taskAppNode = taskAppNode;
+			this.count = count;
+		}
+	}
 }
