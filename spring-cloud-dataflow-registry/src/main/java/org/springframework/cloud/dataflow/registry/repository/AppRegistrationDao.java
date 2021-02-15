@@ -56,7 +56,7 @@ public class AppRegistrationDao {
       predicates.add(cb.equal(appRegistrationRoot.get("type"), type));
     }
     if (StringUtils.hasText(name)) {
-      predicates.add(cb.like(cb.lower(appRegistrationRoot.get("name")), name.toLowerCase()));
+      predicates.add(cb.like(cb.lower(appRegistrationRoot.get("name")), "%" + name.toLowerCase() + "%"));
     }
     if (StringUtils.hasText(version)) {
       predicates.add(cb.equal(cb.lower(appRegistrationRoot.get("version")), version.toLowerCase()));
