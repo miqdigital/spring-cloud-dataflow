@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ForkJoinPool;
 
+import javax.persistence.EntityManager;
 import javax.sql.DataSource;
 
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -34,6 +35,7 @@ import org.springframework.batch.core.repository.dao.AbstractJdbcBatchMetadataDa
 import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.database.support.DataFieldMaxValueIncrementerFactory;
 import org.springframework.batch.item.database.support.DefaultDataFieldMaxValueIncrementerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -58,6 +60,7 @@ import org.springframework.cloud.dataflow.core.DefaultStreamDefinitionService;
 import org.springframework.cloud.dataflow.core.Launcher;
 import org.springframework.cloud.dataflow.core.StreamDefinitionService;
 import org.springframework.cloud.dataflow.core.TaskPlatform;
+import org.springframework.cloud.dataflow.registry.repository.AppRegistrationDao;
 import org.springframework.cloud.dataflow.registry.repository.AppRegistrationRepository;
 import org.springframework.cloud.dataflow.registry.service.AppRegistryService;
 import org.springframework.cloud.dataflow.registry.service.DefaultAppRegistryService;
@@ -216,6 +219,9 @@ import static org.mockito.Mockito.when;
 @EnableMapRepositories("org.springframework.cloud.dataflow.server.job")
 @EnableTransactionManagement
 public class TestDependencies extends WebMvcConfigurationSupport {
+
+	@Autowired
+	EntityManager entityManager;
 
 	@Bean
 	public RestControllerAdvice restControllerAdvice() {
@@ -411,7 +417,8 @@ public class TestDependencies extends WebMvcConfigurationSupport {
 	@Bean
 	public AppRegistryService appRegistryService(AppRegistrationRepository appRegistrationRepository,
 			AppResourceCommon appResourceService, AuditRecordService auditRecordService) {
-		return new DefaultAppRegistryService(appRegistrationRepository, appResourceService, auditRecordService);
+		return new DefaultAppRegistryService(appRegistrationRepository, appResourceService, auditRecordService,
+				new AppRegistrationDao(entityManager, appRegistrationRepository));
 	}
 
 	@Bean
