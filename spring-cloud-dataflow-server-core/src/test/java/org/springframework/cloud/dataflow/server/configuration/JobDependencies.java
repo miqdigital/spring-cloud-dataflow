@@ -48,6 +48,7 @@ import org.springframework.cloud.dataflow.configuration.metadata.BootApplication
 import org.springframework.cloud.dataflow.configuration.metadata.container.ContainerImageMetadataResolver;
 import org.springframework.cloud.dataflow.core.Launcher;
 import org.springframework.cloud.dataflow.core.TaskPlatform;
+import org.springframework.cloud.dataflow.registry.repository.AppRegistrationDao;
 import org.springframework.cloud.dataflow.registry.repository.AppRegistrationRepository;
 import org.springframework.cloud.dataflow.registry.service.AppRegistryService;
 import org.springframework.cloud.dataflow.registry.service.DefaultAppRegistryService;
@@ -380,9 +381,10 @@ public class JobDependencies {
 	@Bean
 	@ConditionalOnMissingBean
 	public AppRegistryService appRegistryService(AppRegistrationRepository appRegistrationRepository,
-			AuditRecordService auditRecordService) {
+			AuditRecordService auditRecordService, AppRegistrationDao appRegistrationDao) {
 		return new DefaultAppRegistryService(appRegistrationRepository,
-				new AppResourceCommon(new MavenProperties(), new DefaultResourceLoader()), auditRecordService);
+				new AppResourceCommon(new MavenProperties(), new DefaultResourceLoader()), auditRecordService,
+				appRegistrationDao);
 	}
 
 	@Bean

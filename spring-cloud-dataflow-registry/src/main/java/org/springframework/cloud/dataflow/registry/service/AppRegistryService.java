@@ -206,4 +206,16 @@ public interface AppRegistryService {
 	 * @return the resource version
 	 */
 	String getResourceVersion(String uriString);
+
+	/**
+	 * @param type application type
+	 * @param name application name
+	 * @param version application version
+	 * @param defaultVersion application default version
+	 * @param pageable Pagination information
+	 * @return returns all {@link AppRegistration} versions for given name and type. Uses the
+	 * pagination.
+	 */
+	Page<AppRegistration> findAllByTypeAndNameIsLikeAndVersionAndDefaultVersion(ApplicationType type,
+			String name, String version, boolean defaultVersion, Pageable pageable);
 }
