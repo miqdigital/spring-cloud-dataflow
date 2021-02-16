@@ -418,7 +418,7 @@ public class TestDependencies extends WebMvcConfigurationSupport {
 	public AppRegistryService appRegistryService(AppRegistrationRepository appRegistrationRepository,
 			AppResourceCommon appResourceService, AuditRecordService auditRecordService) {
 		return new DefaultAppRegistryService(appRegistrationRepository, appResourceService, auditRecordService,
-				new AppRegistrationDao(entityManager));
+				new AppRegistrationDao(entityManager, appRegistrationRepository));
 	}
 
 	@Bean

@@ -17,7 +17,9 @@
 package org.springframework.cloud.dataflow.registry.repository;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
@@ -40,10 +42,13 @@ import org.springframework.util.StringUtils;
 public class AppRegistrationDao {
 
   private final EntityManager entityManager;
+  private final AppRegistrationRepository appRegistrationRepository;
 
-  public AppRegistrationDao(EntityManager entityManager) {
+  public AppRegistrationDao(EntityManager entityManager, AppRegistrationRepository appRegistrationRepository) {
     Assert.notNull(entityManager, "Entity manager cannot be null");
+    Assert.notNull(appRegistrationRepository, "AppRegistrationRepository cannot be null");
     this.entityManager = entityManager;
+    this.appRegistrationRepository = appRegistrationRepository;
   }
 
   public Page<AppRegistration> findAllByTypeAndNameIsLikeAndVersionAndDefaultVersion(ApplicationType type,
@@ -70,6 +75,14 @@ public class AppRegistrationDao {
     query.setFirstResult((int) pageable.getOffset());
     query.setMaxResults(pageable.getPageSize());
     final List<AppRegistration> resultList = query.getResultList();
+    if (defaultVersion) {
+      resultList.forEach(appRegistration -> {
+        HashSet<String> versions =
+            appRegistrationRepository.findAllByName(appRegistration.getName()).stream()
+                .map(AppRegistration::getVersion).collect(Collectors.toCollection(HashSet::new));
+        appRegistration.setVersions(versions);
+      });
+    }
     return new PageImpl<>(resultList, pageable, getTotalCount(cb, predicates.toArray(new Predicate[0])));
   }
 
