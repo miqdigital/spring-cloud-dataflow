@@ -129,6 +129,7 @@ public class AppRegistryController {
 	 * @param pageable Pagination information
 	 * @param pagedResourcesAssembler the resource assembler for app registrations
 	 * @param type the application type: source, sink, processor, task
+	 * @param version optional application version
 	 * @param search optional findByTaskNameContains parameter
 	 * @return the list of registered applications
 	 */

@@ -37,62 +37,70 @@ import org.springframework.data.jpa.repository.query.QueryUtils;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
+/**
+ * DAO to access {@link org.springframework.cloud.dataflow.core.AppRegistration}. Contains
+ * predicate specific operations to make filtering based on optional parameters more
+ * efficient. Implements
+ * {@link org.springframework.cloud.dataflow.registry.repository.AppRegistrationDao}
+ *
+ * @author Siddhant Sorann
+ */
 public class JdbcAppRegistrationDao implements AppRegistrationDao {
 
-  private final EntityManager entityManager;
-  private final AppRegistrationRepository appRegistrationRepository;
+	private final EntityManager entityManager;
 
-  public JdbcAppRegistrationDao(EntityManager entityManager, AppRegistrationRepository appRegistrationRepository) {
-    Assert.notNull(entityManager, "Entity manager cannot be null");
-    Assert.notNull(appRegistrationRepository, "AppRegistrationRepository cannot be null");
-    this.entityManager = entityManager;
-    this.appRegistrationRepository = appRegistrationRepository;
-  }
+	private final AppRegistrationRepository appRegistrationRepository;
 
-  @Override
-  public Page<AppRegistration> findAllByTypeAndNameIsLikeAndVersionAndDefaultVersion(ApplicationType type,
-      String name, String version, boolean defaultVersion, Pageable pageable) {
-    CriteriaBuilder cb = entityManager.getCriteriaBuilder();
-    CriteriaQuery<AppRegistration> cq = cb.createQuery(AppRegistration.class);
-    Root<AppRegistration> appRegistrationRoot = cq.from(AppRegistration.class);
-    final List<Predicate> predicates = new ArrayList<>();
-    if (type != null) {
-      predicates.add(cb.equal(appRegistrationRoot.get("type"), type));
-    }
-    if (StringUtils.hasText(name)) {
-      predicates.add(cb.like(cb.lower(appRegistrationRoot.get("name")), "%" + name.toLowerCase() + "%"));
-    }
-    if (StringUtils.hasText(version)) {
-      predicates.add(cb.equal(cb.lower(appRegistrationRoot.get("version")), version.toLowerCase()));
-    }
-    if (defaultVersion) {
-      predicates.add(cb.isTrue(appRegistrationRoot.get("defaultVersion")));
-    }
-    cq.where(predicates.toArray(new Predicate[0]));
-    cq.orderBy(QueryUtils.toOrders(pageable.getSort(), appRegistrationRoot, cb));
-    TypedQuery<AppRegistration> query = entityManager.createQuery(cq);
-    query.setFirstResult((int) pageable.getOffset());
-    query.setMaxResults(pageable.getPageSize());
-    final List<AppRegistration> resultList = query.getResultList();
-    if (defaultVersion) {
-      resultList.forEach(appRegistration -> {
-        HashSet<String> versions =
-            appRegistrationRepository.findAllByName(appRegistration.getName()).stream()
-                .map(AppRegistration::getVersion).collect(Collectors.toCollection(HashSet::new));
-        appRegistration.setVersions(versions);
-      });
-    }
-    return new PageImpl<>(resultList, pageable, getTotalCount(cb, predicates.toArray(new Predicate[0])));
-  }
+	public JdbcAppRegistrationDao(EntityManager entityManager, AppRegistrationRepository appRegistrationRepository) {
+		Assert.notNull(entityManager, "Entity manager cannot be null");
+		Assert.notNull(appRegistrationRepository, "AppRegistrationRepository cannot be null");
+		this.entityManager = entityManager;
+		this.appRegistrationRepository = appRegistrationRepository;
+	}
 
-  private Long getTotalCount(CriteriaBuilder criteriaBuilder, Predicate[] predicateArray) {
-    CriteriaQuery<Long> criteriaQuery = criteriaBuilder.createQuery(Long.class);
-    Root<AppRegistration> root = criteriaQuery.from(AppRegistration.class);
+	@Override
+	public Page<AppRegistration> findAllByTypeAndNameIsLikeAndVersionAndDefaultVersion(ApplicationType type,
+			String name, String version, boolean defaultVersion, Pageable pageable) {
+		CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+		CriteriaQuery<AppRegistration> cq = cb.createQuery(AppRegistration.class);
+		Root<AppRegistration> appRegistrationRoot = cq.from(AppRegistration.class);
+		final List<Predicate> predicates = new ArrayList<>();
+		if (type != null) {
+			predicates.add(cb.equal(appRegistrationRoot.get("type"), type));
+		}
+		if (StringUtils.hasText(name)) {
+			predicates.add(cb.like(cb.lower(appRegistrationRoot.get("name")), "%" + name.toLowerCase() + "%"));
+		}
+		if (StringUtils.hasText(version)) {
+			predicates.add(cb.equal(cb.lower(appRegistrationRoot.get("version")), version.toLowerCase()));
+		}
+		if (defaultVersion) {
+			predicates.add(cb.isTrue(appRegistrationRoot.get("defaultVersion")));
+		}
+		cq.where(predicates.toArray(new Predicate[0]));
+		cq.orderBy(QueryUtils.toOrders(pageable.getSort(), appRegistrationRoot, cb));
+		TypedQuery<AppRegistration> query = entityManager.createQuery(cq);
+		query.setFirstResult((int) pageable.getOffset());
+		query.setMaxResults(pageable.getPageSize());
+		final List<AppRegistration> resultList = query.getResultList();
+		if (defaultVersion) {
+			resultList.forEach(appRegistration -> {
+				HashSet<String> versions = appRegistrationRepository.findAllByName(appRegistration.getName()).stream()
+						.map(AppRegistration::getVersion).collect(Collectors.toCollection(HashSet::new));
+				appRegistration.setVersions(versions);
+			});
+		}
+		return new PageImpl<>(resultList, pageable, getTotalCount(cb, predicates.toArray(new Predicate[0])));
+	}
 
-    criteriaQuery.select(criteriaBuilder.count(root));
-    criteriaQuery.where(predicateArray);
+	private Long getTotalCount(CriteriaBuilder criteriaBuilder, Predicate[] predicateArray) {
+		CriteriaQuery<Long> criteriaQuery = criteriaBuilder.createQuery(Long.class);
+		Root<AppRegistration> root = criteriaQuery.from(AppRegistration.class);
 
-    return entityManager.createQuery(criteriaQuery).getSingleResult();
-  }
+		criteriaQuery.select(criteriaBuilder.count(root));
+		criteriaQuery.where(predicateArray);
+
+		return entityManager.createQuery(criteriaQuery).getSingleResult();
+	}
 
 }

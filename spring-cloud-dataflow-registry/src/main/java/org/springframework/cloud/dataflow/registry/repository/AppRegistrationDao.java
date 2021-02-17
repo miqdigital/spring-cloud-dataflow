@@ -20,10 +20,29 @@ import org.springframework.cloud.dataflow.core.AppRegistration;
 import org.springframework.cloud.dataflow.core.ApplicationType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.Nullable;
 
+/**
+ * DAO to access {@link org.springframework.cloud.dataflow.core.AppRegistration}. Contains
+ * predicate specific operations to make filtering based on optional parameters more
+ * efficient.
+ *
+ * @author Siddhant Sorann
+ */
 public interface AppRegistrationDao {
 
+	/**
+	 * Function to find all app registrations based on various optional parameters using
+	 * predicates.
+	 * @param type application type.
+	 * @param name application name.
+	 * @param version application version.
+	 * @param defaultVersion default version.
+	 * @param pageable enumerates the data to be returned.
+	 * @return paginated list of filtered app registrations.
+	 */
 	Page<AppRegistration> findAllByTypeAndNameIsLikeAndVersionAndDefaultVersion(
-			ApplicationType type, String name, String version, boolean defaultVersion, Pageable pageable);
+			@Nullable ApplicationType type, @Nullable String name, @Nullable String version, boolean defaultVersion,
+			Pageable pageable);
 
 }
