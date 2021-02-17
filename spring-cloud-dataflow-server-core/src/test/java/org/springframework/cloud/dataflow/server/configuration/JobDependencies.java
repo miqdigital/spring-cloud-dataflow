@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
 
@@ -50,6 +51,7 @@ import org.springframework.cloud.dataflow.core.Launcher;
 import org.springframework.cloud.dataflow.core.TaskPlatform;
 import org.springframework.cloud.dataflow.registry.repository.AppRegistrationDao;
 import org.springframework.cloud.dataflow.registry.repository.AppRegistrationRepository;
+import org.springframework.cloud.dataflow.registry.repository.JdbcAppRegistrationDao;
 import org.springframework.cloud.dataflow.registry.service.AppRegistryService;
 import org.springframework.cloud.dataflow.registry.service.DefaultAppRegistryService;
 import org.springframework.cloud.dataflow.registry.support.AppResourceCommon;
@@ -492,5 +494,11 @@ public class JobDependencies {
 	@Bean
 	public OAuth2TokenUtilsService oauth2TokenUtilsService() {
 		return mock(OAuth2TokenUtilsService.class);
+	}
+
+	@Bean
+	public AppRegistrationDao appRegistrationDao(EntityManager entityManager,
+			AppRegistrationRepository appRegistrationRepository) {
+		return new JdbcAppRegistrationDao(entityManager, appRegistrationRepository);
 	}
 }
