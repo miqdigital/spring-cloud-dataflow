@@ -18,8 +18,6 @@ package org.springframework.cloud.dataflow.registry.service;
 import java.net.URI;
 import java.util.List;
 
-import javax.validation.constraints.Null;
-
 import org.springframework.cloud.dataflow.core.AppRegistration;
 import org.springframework.cloud.dataflow.core.ApplicationType;
 import org.springframework.cloud.dataflow.registry.support.NoSuchAppRegistrationException;
